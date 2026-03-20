@@ -1,213 +1,131 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flight Earth</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.js"></script>
+<title>Flight Earth 3D REAL</title>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 
 <style>
-body { margin:0; overflow:hidden; font-family:sans-serif; }
-
-#mapScreen {
-  position:fixed; inset:0; z-index:20;
-}
-#map { width:100%; height:100%; }
-
-#startFlight {
-  position:absolute;
-  bottom:20px; left:50%;
-  transform:translateX(-50%);
-  padding:12px 20px;
-  font-size:16px;
-  background:#ffd166;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
+html, body, #cesiumContainer {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
 }
 
 #hud {
-  position:fixed; top:10px; left:10px;
-  background:rgba(0,0,0,0.5);
-  color:white; padding:10px;
-  border-radius:8px;
-  z-index:10;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  z-index: 10;
 }
 </style>
 </head>
 
 <body>
 
-<div id="mapScreen">
-  <div id="map"></div>
-  <button id="startFlight">Voar aqui</button>
-</div>
-
-<div id="hud">Clique no mapa</div>
+<div id="cesiumContainer"></div>
+<div id="hud">Clique em qualquer lugar do planeta 🌍</div>
 
 <script>
-let selectedLat = 0, selectedLon = 0;
-let currentLat = 0, currentLon = 0;
+/* ================= CESIUM ================= */
 
-/* ================= MAPA ================= */
+Cesium.Ion.defaultAccessToken = ""; // pode deixar vazio
 
-const map = L.map('map').setView([0,0],2);
-
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  maxZoom:19
-}).addTo(map);
-
-let marker;
-
-map.on('click', e=>{
-  selectedLat = e.latlng.lat;
-  selectedLon = e.latlng.lng;
-
-  if(marker) map.removeLayer(marker);
-  marker = L.marker([selectedLat,selectedLon]).addTo(map);
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  terrainProvider: Cesium.createWorldTerrain(),
+  animation: false,
+  timeline: false
 });
 
-/* ================= THREE ================= */
+/* ================= AVIÃO ================= */
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight,0.1,5000);
+let planeEntity = null;
+let heading = 0;
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth,innerHeight);
-document.body.appendChild(renderer.domElement);
+/* ================= CLICK SPAWN ================= */
 
-/* luz */
-const light = new THREE.DirectionalLight(0xffffff,1);
-light.position.set(100,200,100);
-scene.add(light);
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 
-/* avião */
-const plane = new THREE.Mesh(
-  new THREE.BoxGeometry(5,2,10),
-  new THREE.MeshStandardMaterial({color:0xff4444})
-);
-scene.add(plane);
+handler.setInputAction(function(click) {
 
-/* ================= TILE SYSTEM ================= */
+  const cartesian = viewer.scene.pickPosition(click.position);
 
-const TILE_SIZE = 256;
-const ZOOM = 15;
-const tiles = new Map();
+  if (!cartesian) return;
 
-function latLonToTile(lat, lon, zoom){
-  const x = Math.floor((lon+180)/360*Math.pow(2,zoom));
-  const y = Math.floor(
-    (1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*Math.pow(2,zoom)
-  );
-  return {x,y};
-}
+  const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
 
-function tileToWorld(x,y){
-  return {x:x*TILE_SIZE, z:y*TILE_SIZE};
-}
+  const lat = Cesium.Math.toDegrees(cartographic.latitude);
+  const lon = Cesium.Math.toDegrees(cartographic.longitude);
 
-function createTile(x,y){
-  const id = x+","+y;
-  if(tiles.has(id)) return;
+  spawnPlane(lat, lon);
 
-  const tex = new THREE.TextureLoader().load(
-    `https://tile.openstreetmap.org/${ZOOM}/${x}/${y}.png`
-  );
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-  const geo = new THREE.PlaneGeometry(TILE_SIZE,TILE_SIZE);
-  geo.rotateX(-Math.PI/2);
+/* ================= SPAWN ================= */
 
-  const mat = new THREE.MeshBasicMaterial({map:tex});
+function spawnPlane(lat, lon){
 
-  const mesh = new THREE.Mesh(geo,mat);
-
-  const pos = tileToWorld(x,y);
-  mesh.position.set(pos.x,0,pos.z);
-
-  scene.add(mesh);
-  tiles.set(id,mesh);
-
-  /* prédios fake */
-  if(Math.random()<0.2){
-    const b = new THREE.Mesh(
-      new THREE.BoxGeometry(20,Math.random()*100,20),
-      new THREE.MeshStandardMaterial({color:0x888888})
-    );
-    b.position.set(pos.x, b.geometry.parameters.height/2, pos.z);
-    scene.add(b);
+  if (planeEntity) {
+    viewer.entities.remove(planeEntity);
   }
-}
 
-function updateTiles(){
-  const t = latLonToTile(currentLat,currentLon,ZOOM);
-
-  for(let dx=-2;dx<=2;dx++){
-    for(let dy=-2;dy<=2;dy++){
-      createTile(t.x+dx, t.y+dy);
+  planeEntity = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lon, lat, 200),
+    model: {
+      uri: "https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/CesiumAir/CesiumAir.glb",
+      minimumPixelSize: 64
     }
-  }
+  });
+
+  viewer.trackedEntity = planeEntity;
 }
-
-/* ================= START ================= */
-
-document.getElementById("startFlight").onclick = ()=>{
-  document.getElementById("mapScreen").style.display="none";
-
-  currentLat = selectedLat;
-  currentLon = selectedLon;
-
-  const t = latLonToTile(currentLat,currentLon,ZOOM);
-  const pos = tileToWorld(t.x,t.y);
-
-  plane.position.set(pos.x,100,pos.z);
-
-  updateTiles();
-};
 
 /* ================= CONTROLES ================= */
 
 const keys = {};
 
-window.addEventListener("keydown",e=>keys[e.code]=true);
-window.addEventListener("keyup",e=>keys[e.code]=false);
+window.addEventListener("keydown", e => keys[e.code] = true);
+window.addEventListener("keyup", e => keys[e.code] = false);
 
-/* ================= LOOP ================= */
+/* ================= MOVIMENTO ================= */
 
-function animate(){
-  requestAnimationFrame(animate);
+viewer.clock.onTick.addEventListener(function(){
 
-  const speed = 2;
+  if (!planeEntity) return;
 
-  if(keys["KeyW"]) plane.position.z -= speed;
-  if(keys["KeyS"]) plane.position.z += speed;
-  if(keys["KeyA"]) plane.position.x -= speed;
-  if(keys["KeyD"]) plane.position.x += speed;
+  let pos = planeEntity.position.getValue(viewer.clock.currentTime);
 
-  if(keys["ShiftLeft"]) plane.position.y += 2;
-  if(keys["ControlLeft"]) plane.position.y -= 2;
+  let carto = Cesium.Cartographic.fromCartesian(pos);
 
-  /* mover no mundo real */
-  currentLat -= (plane.position.z*0.0000001);
-  currentLon += (plane.position.x*0.0000001);
+  let lat = Cesium.Math.toDegrees(carto.latitude);
+  let lon = Cesium.Math.toDegrees(carto.longitude);
+  let height = carto.height;
 
-  updateTiles();
+  const speed = 0.0005;
 
-  camera.position.set(
-    plane.position.x,
-    plane.position.y+50,
-    plane.position.z+100
-  );
+  if (keys["KeyW"]) lat += speed;
+  if (keys["KeyS"]) lat -= speed;
+  if (keys["KeyA"]) lon -= speed;
+  if (keys["KeyD"]) lon += speed;
 
-  camera.lookAt(plane.position);
+  if (keys["ShiftLeft"]) height += 50;
+  if (keys["ControlLeft"]) height -= 50;
 
-  renderer.render(scene,camera);
-}
+  const newPos = Cesium.Cartesian3.fromDegrees(lon, lat, height);
 
-animate();
+  planeEntity.position = newPos;
 
+});
 </script>
+
 </body>
 </html>
