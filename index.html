@@ -1,686 +1,213 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mini Flight Procedural</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flight Earth</title>
 
-    :root {
-      --panel-bg: linear-gradient(140deg, rgba(9, 20, 34, 0.84), rgba(18, 41, 64, 0.75));
-      --panel-border: rgba(255, 255, 255, 0.22);
-      --text: #f3f9ff;
-      --muted: #b9d2ea;
-      --accent: #ffd166;
-      --danger: #ff6b6b;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      font-family: 'Chakra Petch', 'Segoe UI', sans-serif;
-      background:
-        radial-gradient(120vw 80vh at 85% 15%, rgba(255, 255, 255, 0.33), transparent 60%),
-        linear-gradient(180deg, #8ac6ff 0%, #c9ebff 45%, #f2fbff 100%);
-      color: var(--text);
-    }
-
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-
-    #hud {
-      position: fixed;
-      top: 14px;
-      left: 14px;
-      width: min(430px, calc(100% - 28px));
-      padding: 14px 14px 12px;
-      border: 1px solid var(--panel-border);
-      border-radius: 14px;
-      background: var(--panel-bg);
-      backdrop-filter: blur(6px);
-      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.25);
-      animation: intro 0.55s ease;
-      user-select: none;
-      z-index: 10;
-    }
-
-    #hud h1 {
-      margin: 0 0 6px;
-      font-size: 1.25rem;
-      letter-spacing: 0.02em;
-      color: #ffffff;
-    }
-
-    #hud p {
-      margin: 0 0 8px;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    #controls {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px 10px;
-      font-size: 0.87rem;
-    }
-
-    #controls span {
-      display: block;
-      white-space: nowrap;
-    }
-
-    #controls b {
-      color: var(--accent);
-      font-weight: 700;
-    }
-
-    #status {
-      position: fixed;
-      left: 14px;
-      bottom: 14px;
-      padding: 9px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.17);
-      background: rgba(9, 20, 34, 0.72);
-      backdrop-filter: blur(5px);
-      font-size: 0.88rem;
-      letter-spacing: 0.01em;
-      user-select: none;
-      z-index: 10;
-    }
-
-    #message {
-      position: fixed;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      padding: 12px 16px;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      background: rgba(12, 19, 34, 0.86);
-      color: #fff;
-      font-size: 1rem;
-      letter-spacing: 0.02em;
-      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
-      z-index: 15;
-      transition: opacity 0.25s ease;
-      text-align: center;
-      pointer-events: none;
-    }
-
-    #message.hidden {
-      opacity: 0;
-    }
-
-    #message.danger {
-      border-color: rgba(255, 107, 107, 0.5);
-      color: var(--danger);
-    }
-
-    @keyframes intro {
-      from {
-        transform: translateY(-6px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    @media (max-width: 680px) {
-      #hud {
-        width: calc(100% - 20px);
-        top: 10px;
-        left: 10px;
-        padding: 12px;
-      }
-
-      #controls {
-        grid-template-columns: 1fr;
-        gap: 5px;
-      }
-
-      #status {
-        left: 10px;
-        bottom: 10px;
-        font-size: 0.82rem;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div id="hud">
-    <h1>Mini Flight 3D Procedural</h1>
-    <p>Voe pelo mundo gerado em tempo real e evite bater no terreno.</p>
-    <div id="controls">
-      <span><b>W / S</b> subir / descer o nariz</span>
-      <span><b>A / D</b> inclinar esquerda / direita</span>
-      <span><b>Q / E</b> guinada (leme)</span>
-      <span><b>Shift / Ctrl</b> acelerar / frear</span>
-      <span><b>R</b> reiniciar voo</span>
-      <span><b>P</b> pausar</span>
-    </div>
-  </div>
-
-  <div id="status"></div>
-  <div id="message">Clique na tela e use o teclado para voar</div>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.js"></script>
-  <script>
-    (() => {
-      const hudStatus = document.getElementById('status');
-      const messageBox = document.getElementById('message');
-
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x93cfff);
-      scene.fog = new THREE.Fog(0x93cfff, 170, 1400);
-
-      const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 6000);
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      document.body.appendChild(renderer.domElement);
-
-      const hemi = new THREE.HemisphereLight(0xdaf1ff, 0x294221, 0.95);
-      scene.add(hemi);
-
-      const sun = new THREE.DirectionalLight(0xfff2ca, 1.18);
-      sun.position.set(220, 320, 140);
-      sun.castShadow = true;
-      sun.shadow.mapSize.set(2048, 2048);
-      sun.shadow.camera.near = 10;
-      sun.shadow.camera.far = 900;
-      sun.shadow.camera.left = -250;
-      sun.shadow.camera.right = 250;
-      sun.shadow.camera.top = 250;
-      sun.shadow.camera.bottom = -250;
-      scene.add(sun);
-
-      const water = new THREE.Mesh(
-        new THREE.PlaneGeometry(7000, 7000),
-        new THREE.MeshStandardMaterial({
-          color: 0x5ea3d2,
-          transparent: true,
-          opacity: 0.45,
-          roughness: 0.15,
-          metalness: 0.15
-        })
-      );
-      water.rotation.x = -Math.PI / 2;
-      water.position.y = -8;
-      scene.add(water);
-
-      const cloudGroup = new THREE.Group();
-      scene.add(cloudGroup);
-      for (let i = 0; i < 55; i++) {
-        const puff = new THREE.Mesh(
-          new THREE.SphereGeometry(4 + Math.random() * 10, 10, 10),
-          new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 })
-        );
-        puff.position.set(
-          (Math.random() - 0.5) * 3800,
-          180 + Math.random() * 230,
-          (Math.random() - 0.5) * 3800
-        );
-        puff.scale.y = 0.5 + Math.random() * 0.5;
-        cloudGroup.add(puff);
-      }
-
-      const plane = buildPlane();
-      scene.add(plane);
-
-      const CHUNK_SIZE = 220;
-      const CHUNK_SEGMENTS = 30;
-      const RENDER_DISTANCE = 2;
-      const chunks = new Map();
-      const terrainMaterial = new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        flatShading: false,
-        roughness: 0.98,
-        metalness: 0.03
-      });
-
-      const keys = Object.create(null);
-      const forward = new THREE.Vector3();
-      const up = new THREE.Vector3();
-      const desiredCamPos = new THREE.Vector3();
-      const lookTarget = new THREE.Vector3();
-
-      const game = {
-        speed: 46,
-        minSpeed: 18,
-        maxSpeed: 135,
-        paused: false,
-        crashed: false,
-        lastCrashAt: -10
-      };
-
-      const propeller = plane.getObjectByName('propeller');
-
-      function buildPlane() {
-        const body = new THREE.Group();
-
-        const paint = new THREE.MeshStandardMaterial({ color: 0xff4e50, roughness: 0.55, metalness: 0.1 });
-        const dark = new THREE.MeshStandardMaterial({ color: 0x1f2733, roughness: 0.85, metalness: 0.05 });
-        const wingMat = new THREE.MeshStandardMaterial({ color: 0xf4f8ff, roughness: 0.5, metalness: 0.12 });
-
-        const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.95, 7.1, 16), paint);
-        fuselage.rotation.x = Math.PI / 2;
-        fuselage.castShadow = true;
-        body.add(fuselage);
-
-        const nose = new THREE.Mesh(new THREE.ConeGeometry(0.95, 2.3, 16), paint);
-        nose.rotation.x = Math.PI / 2;
-        nose.position.z = -4.65;
-        nose.castShadow = true;
-        body.add(nose);
-
-        const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.82, 12, 10), dark);
-        cockpit.position.set(0, 0.62, -0.62);
-        cockpit.scale.set(1.15, 0.62, 1.55);
-        cockpit.castShadow = true;
-        body.add(cockpit);
-
-        const wing = new THREE.Mesh(new THREE.BoxGeometry(9.3, 0.23, 1.9), wingMat);
-        wing.position.set(0, 0, -0.2);
-        wing.castShadow = true;
-        body.add(wing);
-
-        const tailWing = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.16, 1.1), wingMat);
-        tailWing.position.set(0, 0.22, 2.95);
-        tailWing.castShadow = true;
-        body.add(tailWing);
-
-        const tailFin = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.35, 1.0), wingMat);
-        tailFin.position.set(0, 0.88, 2.95);
-        tailFin.castShadow = true;
-        body.add(tailFin);
-
-        const engine = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.85, 14), dark);
-        engine.rotation.x = Math.PI / 2;
-        engine.position.z = -4.15;
-        engine.castShadow = true;
-        body.add(engine);
-
-        const blade1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.4, 0.14), dark);
-        const blade2 = blade1.clone();
-        blade2.rotation.z = Math.PI / 2;
-
-        const propGroup = new THREE.Group();
-        propGroup.name = 'propeller';
-        propGroup.position.z = -4.72;
-        propGroup.add(blade1, blade2);
-        body.add(propGroup);
-
-        body.position.set(0, 34, 120);
-        body.rotation.y = Math.PI;
-        return body;
-      }
-
-      function clamp(value, min, max) {
-        return Math.max(min, Math.min(max, value));
-      }
-
-      function smoothstep(edge0, edge1, x) {
-        const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
-        return t * t * (3 - 2 * t);
-      }
-
-      function rand2(ix, iz) {
-        const s = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453123;
-        return s - Math.floor(s);
-      }
-
-      function valueNoise(x, z) {
-        const xi = Math.floor(x);
-        const zi = Math.floor(z);
-        const xf = x - xi;
-        const zf = z - zi;
-
-        const a = rand2(xi, zi);
-        const b = rand2(xi + 1, zi);
-        const c = rand2(xi, zi + 1);
-        const d = rand2(xi + 1, zi + 1);
-
-        const u = xf * xf * (3 - 2 * xf);
-        const v = zf * zf * (3 - 2 * zf);
-
-        const ab = a + (b - a) * u;
-        const cd = c + (d - c) * u;
-        return ab + (cd - ab) * v;
-      }
-
-      function fbm(x, z) {
-        let value = 0;
-        let amplitude = 1;
-        let frequency = 0.0036;
-        let norm = 0;
-
-        for (let i = 0; i < 5; i++) {
-          value += (valueNoise(x * frequency, z * frequency) * 2 - 1) * amplitude;
-          norm += amplitude;
-          amplitude *= 0.5;
-          frequency *= 2.04;
-        }
-
-        return value / norm;
-      }
-
-      function terrainHeight(x, z) {
-        const hills = fbm(x, z) * 29;
-        const ridges = Math.sin(x * 0.0065) * 2.4 + Math.cos(z * 0.008) * 2.8;
-        const farFactor = smoothstep(40, 250, Math.hypot(x, z));
-        return (hills + ridges) * farFactor;
-      }
-
-      function chunkId(cx, cz) {
-        return `${cx},${cz}`;
-      }
-
-      function colorByHeight(h) {
-        const c = new THREE.Color();
-        if (h < -2) {
-          c.setRGB(0.18, 0.34, 0.2);
-        } else if (h < 8) {
-          c.setRGB(0.23, 0.5, 0.27);
-        } else if (h < 22) {
-          c.setRGB(0.35, 0.52, 0.3);
-        } else if (h < 35) {
-          c.setRGB(0.47, 0.42, 0.32);
-        } else {
-          c.setRGB(0.72, 0.72, 0.72);
-        }
-        return c;
-      }
-
-      function createChunk(cx, cz) {
-        const id = chunkId(cx, cz);
-        if (chunks.has(id)) {
-          return;
-        }
-
-        let geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SEGMENTS, CHUNK_SEGMENTS);
-        if (
-          (!geo.attributes || !geo.attributes.position) &&
-          typeof THREE.PlaneBufferGeometry === 'function'
-        ) {
-          if (typeof geo.dispose === 'function') {
-            geo.dispose();
-          }
-          geo = new THREE.PlaneBufferGeometry(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SEGMENTS, CHUNK_SEGMENTS);
-        }
-        geo.rotateX(-Math.PI / 2);
-
-        const pos =
-          (typeof geo.getAttribute === 'function' && geo.getAttribute('position')) ||
-          (geo.attributes && geo.attributes.position) ||
-          null;
-        if (!pos) {
-          console.error('Chunk geometry sem atributo de posicao.');
-          return;
-        }
-        const colors = new Float32Array(pos.count * 3);
-
-        const baseX = cx * CHUNK_SIZE;
-        const baseZ = cz * CHUNK_SIZE;
-
-        for (let i = 0; i < pos.count; i++) {
-          const wx = pos.getX(i) + baseX;
-          const wz = pos.getZ(i) + baseZ;
-          const h = terrainHeight(wx, wz);
-          pos.setY(i, h);
-
-          const col = colorByHeight(h);
-          colors[i * 3] = col.r;
-          colors[i * 3 + 1] = col.g;
-          colors[i * 3 + 2] = col.b;
-        }
-
-        pos.needsUpdate = true;
-        const colorAttr = new THREE.BufferAttribute(colors, 3);
-        if (typeof geo.setAttribute === 'function') {
-          geo.setAttribute('color', colorAttr);
-        } else if (typeof geo.addAttribute === 'function') {
-          geo.addAttribute('color', colorAttr);
-        }
-        geo.computeVertexNormals();
-
-        const mesh = new THREE.Mesh(geo, terrainMaterial);
-        mesh.position.set(baseX, 0, baseZ);
-        mesh.receiveShadow = true;
-
-        scene.add(mesh);
-        chunks.set(id, { cx, cz, mesh });
-      }
-
-      function disposeChunk(id) {
-        const chunk = chunks.get(id);
-        if (!chunk) {
-          return;
-        }
-        scene.remove(chunk.mesh);
-        chunk.mesh.geometry.dispose();
-        chunks.delete(id);
-      }
-
-      function updateChunks(force = false) {
-        const currentCX = Math.floor(plane.position.x / CHUNK_SIZE);
-        const currentCZ = Math.floor(plane.position.z / CHUNK_SIZE);
-
-        for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
-          for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
-            createChunk(currentCX + dx, currentCZ + dz);
-          }
-        }
-
-        for (const [id, chunk] of chunks) {
-          const out =
-            Math.abs(chunk.cx - currentCX) > RENDER_DISTANCE + 1 ||
-            Math.abs(chunk.cz - currentCZ) > RENDER_DISTANCE + 1;
-
-          if (out || force) {
-            if (!force && !out) {
-              continue;
-            }
-            disposeChunk(id);
-          }
-        }
-
-        if (force) {
-          for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
-            for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
-              createChunk(currentCX + dx, currentCZ + dz);
-            }
-          }
-        }
-      }
-
-      function showMessage(text, isDanger = false, holdMs = 900) {
-        messageBox.textContent = text;
-        messageBox.classList.remove('hidden');
-        if (isDanger) {
-          messageBox.classList.add('danger');
-        } else {
-          messageBox.classList.remove('danger');
-        }
-
-        if (holdMs > 0) {
-          window.setTimeout(() => {
-            messageBox.classList.add('hidden');
-          }, holdMs);
-        }
-      }
-
-      function resetFlight() {
-        plane.position.set(0, 34, 120);
-        plane.quaternion.setFromEuler(new THREE.Euler(-0.05, Math.PI, 0, 'YXZ'));
-        game.speed = 46;
-        game.crashed = false;
-        updateChunks(true);
-      }
-
-      function crash() {
-        if (game.crashed) {
-          return;
-        }
-        game.crashed = true;
-        game.lastCrashAt = performance.now() / 1000;
-        showMessage('Voce caiu! Reiniciando...', true, 1200);
-      }
-
-      function updateFlight(dt, elapsed) {
-        if (game.crashed) {
-          if (elapsed - game.lastCrashAt > 1.2) {
-            resetFlight();
-          }
-          return;
-        }
-
-        const accelerating = keys.ShiftLeft || keys.ShiftRight;
-        const braking = keys.ControlLeft || keys.ControlRight;
-        const throttle = (accelerating ? 1 : 0) - (braking ? 1 : 0);
-
-        game.speed += throttle * 34 * dt;
-        game.speed -= 3.5 * dt;
-        game.speed = clamp(game.speed, game.minSpeed, game.maxSpeed);
-
-        const pitchInput = ((keys.KeyW || keys.ArrowUp) ? 1 : 0) - ((keys.KeyS || keys.ArrowDown) ? 1 : 0);
-        const rollInput = ((keys.KeyA || keys.ArrowLeft) ? 1 : 0) - ((keys.KeyD || keys.ArrowRight) ? 1 : 0);
-        const yawInput = (keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0);
-
-        const euler = new THREE.Euler().setFromQuaternion(plane.quaternion, 'YXZ');
-        euler.x += pitchInput * 1.18 * dt;
-        euler.z += rollInput * 1.85 * dt;
-        euler.y += yawInput * 1.05 * dt;
-
-        euler.y += -Math.sin(euler.z) * 0.88 * dt * (game.speed / game.maxSpeed);
-
-        if (pitchInput === 0) {
-          euler.x *= Math.exp(-0.45 * dt);
-        }
-        if (rollInput === 0) {
-          euler.z *= Math.exp(-1.3 * dt);
-        }
-
-        euler.x = clamp(euler.x, -1.1, 1.1);
-        euler.z = clamp(euler.z, -1.55, 1.55);
-
-        plane.quaternion.setFromEuler(euler);
-
-        forward.set(0, 0, -1).applyQuaternion(plane.quaternion).normalize();
-        plane.position.addScaledVector(forward, game.speed * dt);
-
-        const gravity = 16;
-        const lift = 10.4 * (game.speed / game.maxSpeed);
-        plane.position.y += (lift - gravity) * dt;
-        plane.position.y = Math.min(plane.position.y, 440);
-
-        if (propeller) {
-          propeller.rotation.z += game.speed * dt * 0.95;
-        }
-
-        const ground = terrainHeight(plane.position.x, plane.position.z) + 1.8;
-        if (plane.position.y <= ground || plane.position.y < -30) {
-          crash();
-        }
-      }
-
-      function updateCamera(dt) {
-        forward.set(0, 0, -1).applyQuaternion(plane.quaternion).normalize();
-        up.set(0, 1, 0).applyQuaternion(plane.quaternion).normalize();
-
-        desiredCamPos
-          .copy(plane.position)
-          .addScaledVector(forward, -24)
-          .addScaledVector(up, 8.5);
-
-        const smooth = 1 - Math.exp(-4.1 * dt);
-        camera.position.lerp(desiredCamPos, smooth);
-
-        lookTarget.copy(plane.position).addScaledVector(forward, 22);
-        camera.lookAt(lookTarget);
-      }
-
-      function updateHud() {
-        const terrain = terrainHeight(plane.position.x, plane.position.z);
-        const altitude = Math.max(0, plane.position.y - terrain);
-
-        hudStatus.innerHTML =
-          `Velocidade: <b>${game.speed.toFixed(0)}</b> | ` +
-          `Altitude: <b>${altitude.toFixed(1)}</b> | ` +
-          `X: ${plane.position.x.toFixed(0)} Z: ${plane.position.z.toFixed(0)}` +
-          (game.paused ? ' | <b>PAUSADO</b>' : '');
-      }
-
-      window.addEventListener('keydown', (event) => {
-        keys[event.code] = true;
-
-        if (event.code === 'KeyR') {
-          resetFlight();
-          showMessage('Voo reiniciado', false, 700);
-        } else if (event.code === 'KeyP') {
-          game.paused = !game.paused;
-          showMessage(game.paused ? 'Jogo pausado' : 'Jogo retomado', false, 650);
-        }
-      });
-
-      window.addEventListener('keyup', (event) => {
-        keys[event.code] = false;
-      });
-
-      renderer.domElement.addEventListener('pointerdown', () => {
-        messageBox.classList.add('hidden');
-      });
-
-      window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-
-      resetFlight();
-      updateChunks();
-
-      let lastTime = performance.now() / 1000;
-      function animate() {
-        requestAnimationFrame(animate);
-
-        const now = performance.now() / 1000;
-        const dt = Math.min(0.05, now - lastTime);
-        lastTime = now;
-
-        if (!game.paused) {
-          updateFlight(dt, now);
-        }
-
-        updateChunks();
-        updateCamera(dt);
-        updateHud();
-
-        cloudGroup.rotation.y += dt * 0.012;
-        water.position.x = plane.position.x * 0.03;
-        water.position.z = plane.position.z * 0.03;
-
-        renderer.render(scene, camera);
-      }
-
-      animate();
-    })();
-  </script>
+
+<style>
+body { margin:0; overflow:hidden; font-family:sans-serif; }
+
+#mapScreen {
+  position:fixed; inset:0; z-index:20;
+}
+#map { width:100%; height:100%; }
+
+#startFlight {
+  position:absolute;
+  bottom:20px; left:50%;
+  transform:translateX(-50%);
+  padding:12px 20px;
+  font-size:16px;
+  background:#ffd166;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+#hud {
+  position:fixed; top:10px; left:10px;
+  background:rgba(0,0,0,0.5);
+  color:white; padding:10px;
+  border-radius:8px;
+  z-index:10;
+}
+</style>
+</head>
+
+<body>
+
+<div id="mapScreen">
+  <div id="map"></div>
+  <button id="startFlight">Voar aqui</button>
+</div>
+
+<div id="hud">Clique no mapa</div>
+
+<script>
+let selectedLat = 0, selectedLon = 0;
+let currentLat = 0, currentLon = 0;
+
+/* ================= MAPA ================= */
+
+const map = L.map('map').setView([0,0],2);
+
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19
+}).addTo(map);
+
+let marker;
+
+map.on('click', e=>{
+  selectedLat = e.latlng.lat;
+  selectedLon = e.latlng.lng;
+
+  if(marker) map.removeLayer(marker);
+  marker = L.marker([selectedLat,selectedLon]).addTo(map);
+});
+
+/* ================= THREE ================= */
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight,0.1,5000);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+
+/* luz */
+const light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(100,200,100);
+scene.add(light);
+
+/* avião */
+const plane = new THREE.Mesh(
+  new THREE.BoxGeometry(5,2,10),
+  new THREE.MeshStandardMaterial({color:0xff4444})
+);
+scene.add(plane);
+
+/* ================= TILE SYSTEM ================= */
+
+const TILE_SIZE = 256;
+const ZOOM = 15;
+const tiles = new Map();
+
+function latLonToTile(lat, lon, zoom){
+  const x = Math.floor((lon+180)/360*Math.pow(2,zoom));
+  const y = Math.floor(
+    (1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*Math.pow(2,zoom)
+  );
+  return {x,y};
+}
+
+function tileToWorld(x,y){
+  return {x:x*TILE_SIZE, z:y*TILE_SIZE};
+}
+
+function createTile(x,y){
+  const id = x+","+y;
+  if(tiles.has(id)) return;
+
+  const tex = new THREE.TextureLoader().load(
+    `https://tile.openstreetmap.org/${ZOOM}/${x}/${y}.png`
+  );
+
+  const geo = new THREE.PlaneGeometry(TILE_SIZE,TILE_SIZE);
+  geo.rotateX(-Math.PI/2);
+
+  const mat = new THREE.MeshBasicMaterial({map:tex});
+
+  const mesh = new THREE.Mesh(geo,mat);
+
+  const pos = tileToWorld(x,y);
+  mesh.position.set(pos.x,0,pos.z);
+
+  scene.add(mesh);
+  tiles.set(id,mesh);
+
+  /* prédios fake */
+  if(Math.random()<0.2){
+    const b = new THREE.Mesh(
+      new THREE.BoxGeometry(20,Math.random()*100,20),
+      new THREE.MeshStandardMaterial({color:0x888888})
+    );
+    b.position.set(pos.x, b.geometry.parameters.height/2, pos.z);
+    scene.add(b);
+  }
+}
+
+function updateTiles(){
+  const t = latLonToTile(currentLat,currentLon,ZOOM);
+
+  for(let dx=-2;dx<=2;dx++){
+    for(let dy=-2;dy<=2;dy++){
+      createTile(t.x+dx, t.y+dy);
+    }
+  }
+}
+
+/* ================= START ================= */
+
+document.getElementById("startFlight").onclick = ()=>{
+  document.getElementById("mapScreen").style.display="none";
+
+  currentLat = selectedLat;
+  currentLon = selectedLon;
+
+  const t = latLonToTile(currentLat,currentLon,ZOOM);
+  const pos = tileToWorld(t.x,t.y);
+
+  plane.position.set(pos.x,100,pos.z);
+
+  updateTiles();
+};
+
+/* ================= CONTROLES ================= */
+
+const keys = {};
+
+window.addEventListener("keydown",e=>keys[e.code]=true);
+window.addEventListener("keyup",e=>keys[e.code]=false);
+
+/* ================= LOOP ================= */
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  const speed = 2;
+
+  if(keys["KeyW"]) plane.position.z -= speed;
+  if(keys["KeyS"]) plane.position.z += speed;
+  if(keys["KeyA"]) plane.position.x -= speed;
+  if(keys["KeyD"]) plane.position.x += speed;
+
+  if(keys["ShiftLeft"]) plane.position.y += 2;
+  if(keys["ControlLeft"]) plane.position.y -= 2;
+
+  /* mover no mundo real */
+  currentLat -= (plane.position.z*0.0000001);
+  currentLon += (plane.position.x*0.0000001);
+
+  updateTiles();
+
+  camera.position.set(
+    plane.position.x,
+    plane.position.y+50,
+    plane.position.z+100
+  );
+
+  camera.lookAt(plane.position);
+
+  renderer.render(scene,camera);
+}
+
+animate();
+
+</script>
 </body>
 </html>
