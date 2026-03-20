@@ -41,7 +41,7 @@ html, body, #cesiumContainer {
 Cesium.Ion.defaultAccessToken = ""; // pode deixar vazio
 
 const viewer = new Cesium.Viewer("cesiumContainer", {
-  terrainProvider: Cesium.createWorldTerrain(),
+  terrain: Cesium.Terrain.fromWorldTerrain(),
   animation: false,
   timeline: false
 });
